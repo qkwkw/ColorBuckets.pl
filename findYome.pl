@@ -1,63 +1,95 @@
 #! /usr/bin/perl
 
-my $CAPABILITY = 70;
-my $ALERT_RANGE = 70;
+####################################################################
+# findYome.pl                                                      #
+#   To compare images and show similarity score without OpenCV.    #
+#   Copyright (c) 2012,2015 Queue Sakura-Shiki(@q_kwkw)            #
+#   Released under the MIT license                                 #
 
-use Image::Magick;
-my $targetFile = $ARGV[0];
+# Parameters.
 
--f $targetFile or die "file not found.";
+# Haredware resource index. It effects quality of similarity score.
+my $resABILITY = 70;
 
-opendir(HDIR, "./") or die($!);
+# When similarity score is higher than this value, the script writes
+# it on standard out.
+my $ALERT_BORDERLINE = 70;
 
-my @dirent = readdir(HDIR);
+# Reducing infomation volume of color.
+my $REDUCING_VOLUME = 2**14;
+
+####################################################################
+
+# Alerting file count.
 my $cnt = 0;
+
+# Get image files from current directory.
+# which is same to this script's directory.
+my $targetFile1 = $ARGV[0];
+-f $targetFile1 or die "file not found.";
+opendir(HDIR, "./") or die($!);
+my @dirent = readdir(HDIR);
 foreach ( @dirent ) {
   if( -f $_ && $_ ne "." && $_ ne ".." && /(jpg|png|gif)$/ ) {
-    if( $_ eq $targetFile ) { next; }
+    $_ eq $targetFile1 and next;
+
+    # Measure similality score many times with different resolution
+    # to make the quality better.
     my $totalScore = 0;
-    $totalScore += compareByScale($targetFile,$_,$CAPABILITY);
-    $totalScore += compareByScale($targetFile,$_,$CAPABILITY*2/3);
-    $totalScore += compareByScale($targetFile,$_,$CAPABILITY*9/5);
+    $totalScore += compare($targetFile1,$_,$resABILITY);
+    $totalScore += compare($targetFile1,$_,$resABILITY*2/3);
+    $totalScore += compare($targetFile1,$_,$resABILITY*9/5);
     $totalScore = 100*$totalScore/3;
-    if( $totalScore > $ALERT_RANGE ) {
+
+    # If both image files are very similer, alert it.
+    if( $ALERT_BORDERLINE < $totalScore ) {
       printf "%05.1f\%,%s\n",$totalScore,$_;
       $cnt ++;
     }
   }
 }
+
+# Write a result.
 printf "  found %d file(s).\n",$cnt;
 printf "  Press enter key to finish :";
-<STDIN>;
+<STDIN>; # wait for pressing enter key.
 
 exit();
 
-sub compareByScale {
 
-  my $targetFile = shift;
-  my $listFile = shift;
-  my $target = Image::Magick->new;
-  my $image = Image::Magick->new;
-  my $cap = int(shift);
+use Image::Magick;
+
+# compare with resolution
+#  arg[0] : comparing target file1.
+#  arg[1] : comparing target file2.
+#  arg[2] : resolution.
+sub compare {
+
+  my $targetFile1 = shift;
+  my $image1 = Image::Magick->new;
+  $image1->Read($targetFile1);
+  $image1->Resize(geometry =>$res."x".$res."!");
+
+  my $targetFile2 = shift;
+  my $image2 = Image::Magick->new;
+  $image2->Read($targetFile2);
+  $image2->Resize(geometry =>$res."x".$res."!");
+
+  my $res = int(shift);
   my $score = 0;
 
-
-  $target->Read($targetFile);
-  $image->Read($listFile);
-  $target->Resize(geometry => $cap."x".$cap."!");
-  $image->Resize(geometry =>$cap."x".$cap."!");
-  for( my $x=0 ; $x<$cap ; $x++ ) {
-    for( my $y=0 ; $y<$cap ; $y++ ) {
-      my ($r1, $g1, $b1) = split /,/,$image->Get("pixel[".$x.",".$y."]");
-      my ($r2, $g2, $b2) = split /,/,$target->Get("pixel[".$x.",".$y."]");
-      if( int($r1/16384) == int($r2/16384) &&
-          int($g1/16384) == int($g2/16384) &&
-          int($b1/16384) == int($b2/16384) ) {
-          $score++;
-        }
-     }
+  for( my $x=0 ; $x<$res ; $x++ ) {
+    for( my $y=0 ; $y<$res ; $y++ ) {
+      my ($r1, $g1, $b1) = split /,/,$image1->Get("pixel[".$x.",".$y."]");
+      my ($r2, $g2, $b2) = split /,/,$image2->Get("pixel[".$x.",".$y."]");
+      if( int($r1/$REDUCING_VOLUME) == int($r2/$REDUCING_VOLUME) &&
+          int($g1/$REDUCING_VOLUME) == int($g2/$REDUCING_VOLUME) &&
+          int($b1/$REDUCING_VOLUME) == int($b2/$REDUCING_VOLUME) ) {
+        $score++;
+      }
+    }
   }
-  return $score*1.0/($cap*$cap);
+  return $score*1.0/($res*$res);
 }
 
 
