@@ -9,7 +9,7 @@
 # Parameters.
 
 # Haredware resource index. It effects quality of similarity score.
-my $resABILITY = 70;
+my $CAPABILITY = 70;
 
 # When similarity score is higher than this value, the script writes
 # it on standard out.
@@ -25,26 +25,25 @@ my $cnt = 0;
 
 # Get image files from current directory.
 # which is same to this script's directory.
-my $targetFile1 = $ARGV[0];
--f $targetFile1 or die "file not found.";
+my $targetFile = $ARGV[0];
+-f $targetFile or die "file not found.";
 opendir(HDIR, "./") or die($!);
 my @dirent = readdir(HDIR);
 foreach ( @dirent ) {
   if( -f $_ && $_ ne "." && $_ ne ".." && /(jpg|png|gif)$/ ) {
-    $_ eq $targetFile1 and next;
 
     # Measure similality score many times with different resolution
     # to make the quality better.
     my $totalScore = 0;
-    $totalScore += compare($targetFile1,$_,$resABILITY);
-    $totalScore += compare($targetFile1,$_,$resABILITY*2/3);
-    $totalScore += compare($targetFile1,$_,$resABILITY*9/5);
+    $totalScore += compare( $targetFile, $_, $CAPABILITY );
+    $totalScore += compare( $targetFile, $_, $CAPABILITY*2/3 );
+    $totalScore += compare( $targetFile, $_, $CAPABILITY*9/5 );
     $totalScore = 100*$totalScore/3;
 
     # If both image files are very similer, alert it.
     if( $ALERT_BORDERLINE < $totalScore ) {
-      printf "%05.1f\%,%s\n",$totalScore,$_;
-      $cnt ++;
+      printf "%05.1f\%,%s\n", $totalScore, $_;
+      $cnt++;
     }
   }
 }
@@ -59,7 +58,7 @@ exit();
 
 use Image::Magick;
 
-# compare with resolution
+# compare image files and count score for the resolution.
 #  arg[0] : comparing target file1.
 #  arg[1] : comparing target file2.
 #  arg[2] : resolution.
@@ -67,13 +66,13 @@ sub compare {
 
   my $targetFile1 = shift;
   my $image1 = Image::Magick->new;
-  $image1->Read($targetFile1);
-  $image1->Resize(geometry =>$res."x".$res."!");
+  $image1->Read( $targetFile1 );
+  $image1->Resize( geometry=>$res."x".$res."!" );
 
   my $targetFile2 = shift;
   my $image2 = Image::Magick->new;
-  $image2->Read($targetFile2);
-  $image2->Resize(geometry =>$res."x".$res."!");
+  $image2->Read( $targetFile2 );
+  $image2->Resize( geometry=>$res."x".$res."!" );
 
   my $res = int(shift);
   my $score = 0;
@@ -89,8 +88,7 @@ sub compare {
       }
     }
   }
-  return $score*1.0/($res*$res);
+  return $score*1.0/($res**2);
 }
-
 
 1;
